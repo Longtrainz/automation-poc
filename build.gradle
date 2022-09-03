@@ -1,0 +1,108 @@
+plugins {
+    id 'java-library'
+    id 'application'
+    id 'io.qameta.allure' version '2.9.6'
+    id 'idea'
+    id "org.sonarqube" version "3.3"
+}
+
+repositories {
+    mavenCentral()
+}
+
+def junitVersion = "5.7.0",
+    junitPlatformVersion = "1.7.0",
+    selenideVersion = "5.25.0",
+    ownerVersion = "1.0.12",
+    allureVersion = "2.14.0",
+    aspectjVersion = "1.9.6",
+    restAssuredVersion = "4.3.1",
+    jacksonVersion = "2.12.2",
+    lombokVersion = "1.18.20",
+    fakerVersion = "1.0.2",
+    assertjVersion = "3.19.0"
+
+allure {
+    version = allureVersion
+}
+
+dependencies {
+    compileOnly "org.projectlombok:lombok:$lombokVersion"
+    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
+    testCompileOnly "org.projectlombok:lombok:$lombokVersion"
+    testAnnotationProcessor "org.projectlombok:lombok:$lombokVersion"
+
+    implementation(
+            "org.aeonbits.owner:owner:$ownerVersion",
+            "io.qameta.allure:allure-rest-assured:$allureVersion",
+            "com.codeborne:selenide:$selenideVersion",
+            "org.junit.jupiter:junit-jupiter:$junitVersion",
+            "io.qameta.allure:allure-selenide:$allureVersion",
+            "org.aspectj:aspectjweaver:$aspectjVersion",
+            "com.github.javafaker:javafaker:$fakerVersion",
+            "io.rest-assured:rest-assured:$restAssuredVersion",
+            "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion",
+            "org.assertj:assertj-core:$assertjVersion",
+            "io.rest-assured:json-schema-validator:4.3.3"
+    )
+
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test) {
+    useJUnitPlatform()
+    systemProperties += System.properties
+
+    if (System.getProperty("threads") != null) {
+        systemProperties += [
+                'junit.jupiter.execution.parallel.enabled'                 : true,
+                'junit.jupiter.execution.parallel.mode.default'            : 'same_thread',
+                'junit.jupiter.execution.parallel.mode.classes.default'    : 'concurrent',
+                'junit.jupiter.execution.parallel.config.strategy'         : 'fixed',
+                'junit.jupiter.execution.parallel.config.fixed.parallelism': System.getProperty("threads").toInteger()
+        ]
+    }
+}
+
+task web(type: Test) {
+    useJUnitPlatform {
+        includeTags 'web'
+        systemProperties(System.getProperties())
+    }
+}
+
+task api(type: Test) {
+    useJUnitPlatform {
+        includeTags 'api'
+        systemProperties(System.getProperties())
+    }
+}
+
+task json_validation(type: Test) {
+    useJUnitPlatform {
+        includeTags 'json'
+        systemProperties(System.getProperties())
+    }
+}
+
+// https://stackoverflow.com/questions/26697999/gradle-equivalent-to-mavens-copy-dependencies
+task copyAllDependencies(type: Copy) {
+    from configurations.compileClasspath
+    into "${buildDir}/output/libs"
+}
+build.dependsOn(copyAllDependencies)
+
+// https://www.baeldung.com/gradle-fat-jar
+task customFatJar(type: Jar) {
+//    manifest {
+//        attributes 'Main-Class': 'com.baeldung.fatjar.Application'
+//    }
+    baseName = 'all-in-one-jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
